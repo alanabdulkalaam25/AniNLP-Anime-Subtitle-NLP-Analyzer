@@ -10,6 +10,7 @@ backend/.env
 
 # JavaScript
 frontend/node_modules/
+frontend/package-lock.json
 frontend/dist/
 
 # Editor and OS files

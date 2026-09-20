@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(grep -E \"\\\\.\\(py|js|jsx|ts|tsx|html|css|md|txt|json|yaml|yml\\)$\")"
-    ]
-  }
-}
