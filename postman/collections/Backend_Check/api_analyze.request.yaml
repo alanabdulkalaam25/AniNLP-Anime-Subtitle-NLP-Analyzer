@@ -1,0 +1,5 @@
+$kind: http-request
+name: api_analyze
+url: http://127.0.0.1:8000/api/analyze
+method: POST
+order: 1789894372616

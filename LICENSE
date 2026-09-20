@@ -1,0 +1,17 @@
+Anime Subtitle NLP Analyzer
+
+Copyright (c) 2026 the AniNLP contributors.
+
+This repository, including the bundled OpenJLPT vocabulary data and any
+derivatives of that data, is licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0).
+
+You may share and adapt the material for any purpose, including commercially,
+provided that you give appropriate credit, link to the license, state whether
+changes were made, and distribute adaptations under the same license.
+
+License: https://creativecommons.org/licenses/by-sa/4.0/
+
+OpenJLPT's required attribution and its full license text are retained in:
+backend/data/jlpt/OPENJLPT_NOTICE.md
+backend/data/jlpt/OPENJLPT_LICENSE.txt
