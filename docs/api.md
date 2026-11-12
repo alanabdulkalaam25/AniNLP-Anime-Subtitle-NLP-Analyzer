@@ -65,3 +65,31 @@ Errors use JSON `{ "detail": "..." }`:
 - `422`: invalid SRT or unsupported text encoding
 - `429`: rate limit exceeded
 - `500`: unexpected NLP-processing failure
+
+## `POST /api/translate`
+
+Translates cleaned Japanese cue strings to English. This is a separate call so a translation outage cannot fail analysis.
+
+- Content type: `application/json`
+- Maximum: 2,000 sentences and 500,000 total characters
+
+```json
+{"sentences": ["学校へ行きます。", "壁を越えて"]}
+```
+
+The response is aligned to the request order. A failed or timed-out cue is `null` rather than shifting the remaining translations.
+
+```json
+{
+  "translations": ["I go to school.", "Beyond the wall"],
+  "failed_count": 0,
+  "provider": "google"
+}
+```
+
+Errors use JSON `{ "detail": "..." }`:
+
+- `400`: total text exceeds the configured limit
+- `422`: missing, empty, or oversized sentence list
+- `429`: rate limit exceeded; the response includes `Retry-After`
+- `503`: translation disabled or provider misconfigured

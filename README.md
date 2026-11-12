@@ -1,8 +1,8 @@
 # AniNLP
 
-AniNLP turns a Japanese anime subtitle file into a cue-by-cue study sheet: dictionary forms, parts of speech, community-derived JLPT labels, and summary statistics for every line.
+AniNLP turns a Japanese anime subtitle file into a cue-by-cue study sheet: dictionary forms, parts of speech, community-derived JLPT labels, English translations, and summary statistics for every line.
 
-Upload an `.srt` file and the app returns a readable breakdown of each cue, the most frequent vocabulary, a part-of-speech ledger, and a JLPT reference spectrum. Nothing is stored; the file is analyzed in memory and discarded.
+Upload an `.srt` file and the app returns a readable breakdown of each cue, the most frequent vocabulary, a part-of-speech ledger, and a JLPT reference spectrum. The file is analyzed in memory and discarded. Cue text is sent to the configured translation provider only to produce the English line; this app does not store it.
 
 ## What it does
 
@@ -12,7 +12,8 @@ Upload an `.srt` file and the app returns a readable breakdown of each cue, the 
 - Normalizes each token to a stable shape: `surface`, dictionary `base`, `reading`, `pos`, and `jlpt`.
 - Matches lexical tokens against the bundled JLPT vocabulary lists, with reading-based fallback matching.
 - Aggregates cue counts, token counts, unique lexical words, average cue length, POS distribution, JLPT distribution, and the 25 most frequent vocabulary entries.
-- Generates no content of its own. Every label, count, and example comes from the uploaded file and the local reference data.
+- Translates every cleaned cue to English through a separate, best-effort API call. Repeated lines are deduplicated and cues are batched, so a normal episode needs only a handful of provider requests.
+- Generates no content of its own. Every label, count, and example comes from the uploaded file and the local reference data; English lines are machine translations.
 
 ## Interface
 
@@ -25,7 +26,7 @@ Before analysis, the page shows the upload form and a fully annotated sample cue
 3. A parts-of-speech ledger.
 4. A note about what the JLPT labels mean.
 5. The frequent-vocabulary table.
-6. A collapsible cue sheet in which each line expands to show its tokens.
+6. A collapsible cue sheet in which each line shows its English translation and expands to show its tokens.
 
 The layout is responsive down to 360 px, and the cue sheet uses native `<details>` elements so it works without JavaScript-only disclosure widgets.
 
@@ -36,6 +37,7 @@ The layout is responsive down to 360 px, and the cue sheet uses native `<details
 | Frontend | React 19, Vite, plain CSS, Bun for install and scripts |
 | Backend | FastAPI, Uvicorn, Pydantic |
 | NLP | `fugashi` (MeCab) with `unidic-lite` |
+| Translation | Batched Google web translation by default; optional DeepL API key |
 | JLPT data | Local JSON vocabulary lists derived from OpenJLPT |
 | Deployment | Render for the API (`render.yaml`), any static host for the Vite build |
 
@@ -44,17 +46,19 @@ The layout is responsive down to 360 px, and the cue sheet uses native `<details
 ```text
 backend/
   app/
-    api/routes/      health.py, analyze.py
+    api/routes/      health.py, analyze.py, translate.py
     core/            config.py, rate_limit.py
     models/          schemas.py
     services/        srt_parser, preprocessor, morphological_analyzer,
-                     jlpt_classifier, statistics, analysis_pipeline
+                     jlpt_classifier, statistics, analysis_pipeline, translator
   data/jlpt/         n5.json through n1.json, OpenJLPT notice and license
   tests/             pytest suite
 frontend/
-  src/App.jsx        upload flow, results, cue sheet
+  public/favicon.svg seal favicon
+  src/App.jsx        upload flow, results, cue sheet, English translations
   src/index.css      "translation desk" design system
   src/services/api.js
+  vercel.json        Vercel build settings
 docs/                api.md, architecture.md, nlp-pipeline.md
 sample-data/
   subtitles/         real and fixture subtitle files
@@ -133,6 +137,13 @@ Backend settings are read from the environment (and from `backend/.env` through 
 | `MAX_CONCURRENT_ANALYSES` | `1` | Analyses allowed to run in parallel per process |
 | `RATE_LIMIT_REQUESTS` | `10` | Requests allowed per client per window |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate-limit window length |
+| `TRANSLATION_ENABLED` | `true` | Enable English cue translation |
+| `TRANSLATION_PROVIDER` | `google` | `google` (no key) or `deepl` (needs `DEEPL_API_KEY`) |
+| `TRANSLATION_TIMEOUT_SECONDS` | `45` | Overall translation deadline per request |
+| `TRANSLATION_BATCH_SIZE` | `20` | Maximum cues sent per provider request |
+| `TRANSLATION_MAX_CHARS_PER_BATCH` | `3000` | Maximum characters sent per provider request |
+| `TRANSLATION_MAX_CONCURRENCY` | `3` | Provider requests allowed in parallel |
+| `DEEPL_API_KEY` | unset | DeepL API key; free keys end with `:fx` |
 
 Frontend:
 
@@ -147,6 +158,7 @@ Frontend:
 | `GET` | `/api/health` | Liveness check; returns `{"status": "ok"}` without initializing NLP resources |
 | `GET` | `/api/ready` | Readiness check; loads the tokenizer and JLPT datasets |
 | `POST` | `/api/analyze` | Accepts one multipart `file` field and returns the full analysis |
+| `POST` | `/api/translate` | Accepts Japanese cue strings and returns aligned English translations |
 
 `POST /api/analyze` accepts `.srt` files only, up to 10 MB, 500,000 decoded characters, and 2,000 cues. The response contains:
 
@@ -166,6 +178,28 @@ Errors are returned as `{"detail": "..."}`:
 - `500`: unexpected NLP failure.
 
 Full response shapes and examples are in [`docs/api.md`](docs/api.md).
+
+## English translation
+
+After analysis returns, the frontend sends the cleaned cue texts to `POST /api/translate`:
+
+```json
+{"sentences": ["学校へ行きます。", "壁を越えて"]}
+```
+
+```json
+{
+  "translations": ["I go to school.", "Beyond the wall"],
+  "failed_count": 0,
+  "provider": "google"
+}
+```
+
+Translation is deliberately separate from analysis. If the provider is slow or unavailable, the Japanese analysis still succeeds and the cue sheet marks English as unavailable. The default provider is Google's public web translation endpoint and needs no key. Cue lines are deduplicated and batched, and successful translations are cached in memory for the life of the process. No database or file is used.
+
+For a key-backed provider, set `TRANSLATION_PROVIDER=deepl` and `DEEPL_API_KEY` in the backend environment. A DeepL free key ends with `:fx`. Set `TRANSLATION_ENABLED=false` to turn the feature off entirely. The key-free Google web endpoint is convenient for light use; use DeepL if you need contracted capacity for heavier traffic.
+
+Cue text is sent to the configured provider to produce the English line. It is not stored by this app, but it does leave the server, so do not upload subtitles you are not allowed to send to that provider.
 
 ## How analysis works
 
@@ -230,6 +264,9 @@ Environment variables:
 | `CORS_ORIGINS` | `https://your-app.vercel.app` (comma-separated, no trailing slash) |
 | `CORS_ORIGIN_REGEX` | Optional, for preview deployments; keep it scoped to your project |
 | `PYTHON_VERSION` | `3.12.8` |
+| `TRANSLATION_ENABLED` | `true` (default) |
+| `TRANSLATION_PROVIDER` | `google` (default, no key) or `deepl` |
+| `DEEPL_API_KEY` | Optional; required only when using DeepL |
 
 The start command must include `--proxy-headers --forwarded-allow-ips="*"` so uvicorn trusts Render's forwarded client IP. The rate limiter keys on that IP; without it, every visitor shares one bucket.
 
@@ -278,6 +315,7 @@ Order matters:
 | CORS error in the browser console | Origin not exactly listed in `CORS_ORIGINS` | Add scheme + host with no trailing slash, then restart Render |
 | 404 when clicking Analyze | API URL is missing `/api` | Use `https://your-service.onrender.com/api` |
 | 429 immediately | Shared proxy IP because forwarded headers are not trusted | Keep `--proxy-headers --forwarded-allow-ips="*"` in the start command |
+| Cue sheet says “no English” | Provider unreachable, rate-limited, or translation disabled | Check Render logs, test `/api/translate`, set `TRANSLATION_ENABLED=true` |
 | First request is very slow | Render free instance woke from sleep | Wait for the cold start; use a paid instance to avoid it |
 
 ## JLPT data and limitations

@@ -409,13 +409,22 @@ h1 {
 }
 
 .cue-preview-text {
-  margin: 20px 0;
+  margin: 20px 0 6px;
   padding-left: 16px;
   border-left: 2px solid var(--accent);
   font-size: 21px;
   line-height: 34px;
   font-weight: 500;
   color: var(--ink);
+}
+
+.cue-preview-translation {
+  margin: 0 0 20px;
+  padding-left: 16px;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--secondary);
 }
 
 .cue-preview-tokens {
@@ -953,11 +962,25 @@ tbody tr:hover {
   color: var(--accent-ink);
 }
 
+.cue-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .cue-text {
   font-size: 15px;
   line-height: 24px;
   color: var(--ink);
   min-width: 0;
+}
+
+.cue-translation {
+  font-family: "Newsreader", Georgia, serif;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--secondary);
 }
 
 .cue-time {
@@ -1157,10 +1180,18 @@ tbody tr:hover {
     grid-area: index;
   }
 
-  .cue-text {
+  .cue-copy {
     grid-area: text;
+  }
+
+  .cue-text {
     font-size: 14px;
     line-height: 22px;
+  }
+
+  .cue-translation {
+    font-size: 13px;
+    line-height: 18px;
   }
 
   .cue-time {

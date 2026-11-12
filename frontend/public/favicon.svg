@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AniNLP">
+  <rect width="64" height="64" rx="14" fill="#b23a26"/>
+  <rect x="4.75" y="4.75" width="54.5" height="54.5" rx="10.25" fill="none" stroke="#f4f0e8" stroke-opacity=".5" stroke-width="1.5"/>
+  <text x="32" y="44" text-anchor="middle" font-family="'Noto Sans JP','Yu Gothic','Hiragino Sans',sans-serif" font-size="36" font-weight="600" fill="#fbf8f2">あ</text>
+</svg>

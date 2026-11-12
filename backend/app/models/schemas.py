@@ -54,3 +54,13 @@ class AnalysisResponse(BaseModel):
     jlpt_distribution: dict[str, int]
     pos_distribution: dict[str, int]
     top_words: list[WordFrequency]
+
+
+class TranslationRequest(BaseModel):
+    sentences: list[str] = Field(min_length=1, max_length=2_000)
+
+
+class TranslationResponse(BaseModel):
+    translations: list[str | None]
+    failed_count: int
+    provider: str

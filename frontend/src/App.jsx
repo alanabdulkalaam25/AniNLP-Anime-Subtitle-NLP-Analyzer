@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { analyzeSubtitle } from "./services/api";
+import { analyzeSubtitle, translateSentences } from "./services/api";
 
 const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1", "UNKNOWN"];
 
@@ -94,6 +94,9 @@ function CuePreview() {
         <span className="cue-preview-time">00:00:26,426 → 00:00:30,263</span>
       </div>
       <p className="cue-preview-text jp">（アルミン）その日 人類は思い出した</p>
+      <p className="cue-preview-translation">
+        Armin: On that day, humanity remembered.
+      </p>
       <div className="cue-preview-tokens">
         {SAMPLE_TOKENS.map((token) => (
           <span className="sample-token" key={`${token.surface}-${token.pos}`}>
@@ -305,15 +308,19 @@ function VocabularyTable({ words }) {
   );
 }
 
-function CueSheet({ sentences }) {
+function CueSheet({ sentences, translations, translationStatus }) {
   return (
     <section className="panel cue-sheet">
       <header className="panel-head">
         <div>
           <h2>Cue sheet</h2>
-          <p>Open a line to see its tokens</p>
+          <p>English translation · open a line for tokens</p>
         </div>
-        <span className="panel-meta">{formatCount(sentences.length)} cues</span>
+        <span className="panel-meta">
+          {formatCount(sentences.length)} cues
+          {translationStatus === "loading" && " · translating"}
+          {translationStatus === "unavailable" && " · no English"}
+        </span>
       </header>
 
       <div className="cue-list">
@@ -326,7 +333,14 @@ function CueSheet({ sentences }) {
               <span className="cue-index">
                 {String(sentence.index).padStart(2, "0")}
               </span>
-              <span className="cue-text jp">{sentence.text}</span>
+              <span className="cue-copy">
+                <span className="cue-text jp">{sentence.text}</span>
+                {translations?.[index] && (
+                  <span className="cue-translation">
+                    {translations[index]}
+                  </span>
+                )}
+              </span>
               <span className="cue-time">
                 {sentence.start} → {sentence.end}
               </span>
@@ -359,6 +373,8 @@ export default function App() {
   const resultsRef = useRef(null);
   const [file, setFile] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [translations, setTranslations] = useState([]);
+  const [translationStatus, setTranslationStatus] = useState("idle");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -371,6 +387,38 @@ export default function App() {
       behavior: prefersReducedMotion() ? "auto" : "smooth",
       block: "start",
     });
+  }, [analysis]);
+
+  useEffect(() => {
+    if (!analysis) {
+      setTranslations([]);
+      setTranslationStatus("idle");
+      return;
+    }
+
+    let active = true;
+    setTranslations([]);
+    setTranslationStatus("loading");
+
+    translateSentences(analysis.sentences.map((sentence) => sentence.text))
+      .then((payload) => {
+        if (!active) return;
+        const values = Array.isArray(payload.translations)
+          ? payload.translations
+          : [];
+        setTranslations(values);
+        const allFailed =
+          values.length > 0 && payload.failed_count >= values.length;
+        setTranslationStatus(allFailed ? "unavailable" : "ready");
+      })
+      .catch(() => {
+        if (!active) return;
+        setTranslationStatus("unavailable");
+      });
+
+    return () => {
+      active = false;
+    };
   }, [analysis]);
 
   async function submit(event) {
@@ -439,7 +487,9 @@ export default function App() {
           {isLoading
             ? "Analyzing subtitle"
             : analysis
-              ? "Analysis ready"
+              ? translationStatus === "loading"
+                ? "Analysis ready. Translating cues."
+                : "Analysis ready"
               : ""}
         </p>
 
@@ -448,8 +498,8 @@ export default function App() {
             <p className="kicker">Cue-by-cue reading</p>
             <h1>Read the Japanese in your anime, line by line.</h1>
             <p className="lede">
-              Upload a subtitle file to see dictionary forms, parts of speech and
-              JLPT reference levels for every cue.
+              Upload a subtitle file to see dictionary forms, parts of speech,
+              English translations and JLPT reference levels for every cue.
             </p>
 
             <form
@@ -534,7 +584,11 @@ export default function App() {
 
             <VocabularyTable words={analysis.top_words} />
 
-            <CueSheet sentences={analysis.sentences} />
+            <CueSheet
+              sentences={analysis.sentences}
+              translations={translations}
+              translationStatus={translationStatus}
+            />
           </section>
         )}
       </main>

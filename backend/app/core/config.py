@@ -32,6 +32,14 @@ def _cors_origin_regex() -> str | None:
     return configured_regex.strip() if configured_regex else None
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    """Read a boolean environment variable with a safe fallback."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"", "0", "false", "no", "off"}
+
+
 @dataclass(frozen=True)
 class Settings:
     app_name: str = "AniNLP API"
@@ -44,6 +52,21 @@ class Settings:
     max_concurrent_analyses: int = int(os.getenv("MAX_CONCURRENT_ANALYSES", "1"))
     rate_limit_requests: int = int(os.getenv("RATE_LIMIT_REQUESTS", "10"))
     rate_limit_window_seconds: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+    translation_enabled: bool = _env_bool("TRANSLATION_ENABLED", True)
+    translation_provider: str = (
+        os.getenv("TRANSLATION_PROVIDER", "google").strip().lower()
+    )
+    translation_timeout_seconds: float = float(
+        os.getenv("TRANSLATION_TIMEOUT_SECONDS", "45.0")
+    )
+    translation_batch_size: int = int(os.getenv("TRANSLATION_BATCH_SIZE", "20"))
+    translation_max_chars_per_batch: int = int(
+        os.getenv("TRANSLATION_MAX_CHARS_PER_BATCH", "3000")
+    )
+    translation_max_concurrency: int = int(
+        os.getenv("TRANSLATION_MAX_CONCURRENCY", "3")
+    )
+    deepl_api_key: str | None = os.getenv("DEEPL_API_KEY") or None
 
 
 settings = Settings()

@@ -18,3 +18,18 @@ export async function analyzeSubtitle(file) {
 
   return payload;
 }
+
+export async function translateSentences(sentences) {
+  const response = await fetch(`${API_BASE_URL}/translate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sentences }),
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.detail ?? "English translation is unavailable.");
+  }
+
+  return payload;
+}
