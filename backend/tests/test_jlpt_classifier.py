@@ -15,6 +15,17 @@ def test_classifier_uses_base_forms_and_leaves_grammar_unclassified(tmp_path: Pa
     assert classifier.classify("架空語") == UNKNOWN_LEVEL
     assert classifier.classify_token(Token(surface="食べ", base="食べる", pos="VERB")).jlpt == "N5"
     assert classifier.classify_token(Token(surface="は", base="は", pos="PARTICLE")).jlpt is None
+    assert classifier.classify_token(Token(surface="100", base="100", pos="NUMERAL")).jlpt is None
+    assert classifier.classify_token(Token(surface="キース", base="キース", pos="PROPER_NOUN")).jlpt is None
+
+
+def test_classifier_reading_and_candidate_fallback() -> None:
+    classifier = JLPTClassifier()
+    # "する", "ある", "ここ", "その" are N5 in OpenJLPT
+    assert classifier.classify("する") == "N5"
+    assert classifier.classify("ある") == "N5"
+    assert classifier.classify("ここ") == "N5"
+    assert classifier.classify("その") == "N5"
 
 
 def test_bundled_openjlpt_vocabulary_has_full_n5_to_n1_coverage() -> None:

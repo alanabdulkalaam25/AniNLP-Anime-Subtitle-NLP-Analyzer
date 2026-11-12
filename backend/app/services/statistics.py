@@ -7,7 +7,16 @@ from collections import Counter
 from app.models.schemas import AnalyzedSentence, Statistics, Token, WordFrequency
 from app.services.jlpt_classifier import JLPT_LEVELS, UNKNOWN_LEVEL
 
-_EXCLUDED_VOCABULARY_POS = {"PUNCTUATION", "WHITESPACE", "PARTICLE", "AUXILIARY"}
+_EXCLUDED_VOCABULARY_POS = {
+    "PUNCTUATION",
+    "WHITESPACE",
+    "PARTICLE",
+    "AUXILIARY",
+    "PREFIX",
+    "SUFFIX",
+    "NUMERAL",
+    "PROPER_NOUN",
+}
 
 
 def build_statistics(sentences: list[AnalyzedSentence]) -> Statistics:
@@ -42,13 +51,18 @@ def build_top_words(sentences: list[AnalyzedSentence], limit: int = 25) -> list[
             occurrences.setdefault(token.base, []).append(token)
 
     ordered_words = sorted(occurrences.items(), key=lambda item: (-len(item[1]), item[0]))[:limit]
-    return [
-        WordFrequency(
-            word=base,
-            reading=tokens[0].reading,
-            pos=tokens[0].pos,
-            jlpt=tokens[0].jlpt,
-            frequency=len(tokens),
+    result: list[WordFrequency] = []
+    for base, tokens in ordered_words:
+        most_common_pos = Counter(t.pos for t in tokens).most_common(1)[0][0]
+        reading = next((t.reading for t in tokens if t.reading), None)
+        jlpt = next((t.jlpt for t in tokens if t.jlpt), None)
+        result.append(
+            WordFrequency(
+                word=base,
+                reading=reading,
+                pos=most_common_pos,
+                jlpt=jlpt,
+                frequency=len(tokens),
+            )
         )
-        for base, tokens in ordered_words
-    ]
+    return result

@@ -3,6 +3,8 @@ backend/.venv/
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
+backend/.test-runtime/
+backend/.test-runtime-final/
 
 # Environment files
 .env

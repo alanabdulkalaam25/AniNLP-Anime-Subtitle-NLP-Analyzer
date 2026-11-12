@@ -1,16 +1,16 @@
 # NLP Pipeline
 
-1. **Decode** the uploaded bytes as UTF-8/BOM or CP932.
-2. **Parse** SRT cues into an index, timestamps, and raw text.
-3. **Preprocess** conservatively: remove HTML and ASS presentation tags, decode HTML entities, and normalize whitespace. Japanese punctuation and grammar are retained.
+1. **Decode** the uploaded bytes as UTF-8/BOM, UTF-16/BOM, or CP932.
+2. **Parse** SRT cues into an index, timestamps, and raw text. Tolerates period and comma milliseconds, single-digit hours, indexless cues, and validates timing order.
+3. **Preprocess** conservatively: remove HTML and ASS presentation tags, ASS line breaks (`\N`, `\n`, `\h`), decode HTML entities, and normalize whitespace. Japanese punctuation and grammar are retained.
 4. **Analyze morphology** with `fugashi`, a Python interface to MeCab, using the bundled UniDic Lite dictionary.
-5. **Normalize tokens** into the stable API fields: `surface`, dictionary `base`, base-form `reading`, and application POS label.
-6. **Classify lexical tokens** using local `backend/data/jlpt/n5.json` through `n1.json` files. Particles, auxiliaries, whitespace, and punctuation have no JLPT label. Other unmatched lexical tokens are `UNKNOWN`.
+5. **Normalize tokens** into the stable API fields: `surface`, dictionary `base` (clean orthographic headword without OOV metadata), base-form `reading`, and application POS label.
+6. **Classify lexical tokens** using local `backend/data/jlpt/n5.json` through `n1.json` files with reading fallback and candidate matching. Particles, auxiliaries, whitespace, punctuation, affixes, numerals, and proper nouns have no JLPT label. Other unmatched lexical tokens are `UNKNOWN`.
 7. **Aggregate** token counts, unique lexical vocabulary, POS counts, JLPT counts, and the 25 most frequent lexical base forms.
 
 ## POS labels
 
-The backend translates UniDic Japanese labels to frontend-friendly values such as `NOUN`, `VERB`, `ADJECTIVE`, `ADVERB`, `PARTICLE`, `AUXILIARY`, and `PUNCTUATION`.
+The backend translates UniDic Japanese labels to frontend-friendly values such as `NOUN`, `PROPER_NOUN`, `PRONOUN`, `NUMERAL`, `VERB`, `ADJECTIVE`, `ADJECTIVAL_NOUN`, `ADVERB`, `PARTICLE`, `AUXILIARY`, `PREFIX`, `SUFFIX`, and `PUNCTUATION`.
 
 ## JLPT data
 

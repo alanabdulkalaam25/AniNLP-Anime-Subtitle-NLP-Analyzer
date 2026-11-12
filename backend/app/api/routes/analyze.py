@@ -1,6 +1,10 @@
 """Subtitle upload and analysis endpoint."""
 
 import asyncio
+import logging
+from pathlib import Path
+import threading
+import time
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 from starlette.concurrency import run_in_threadpool
@@ -8,15 +12,33 @@ from starlette.concurrency import run_in_threadpool
 from app.core.config import settings
 from app.core.rate_limit import RateLimiter
 from app.models.schemas import AnalysisResponse
-from app.services.analysis_pipeline import AnalysisPipeline, decode_subtitle_content
+from app.services.analysis_pipeline import (
+    AnalysisPipeline,
+    AnalysisTimeoutError,
+    decode_subtitle_content,
+)
 from app.services.srt_parser import SRTParseError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["analysis"])
 pipeline = AnalysisPipeline()
-analysis_slots = asyncio.Semaphore(settings.max_concurrent_analyses)
+analysis_slots = threading.BoundedSemaphore(settings.max_concurrent_analyses)
 rate_limiter = RateLimiter(
     settings.rate_limit_requests, settings.rate_limit_window_seconds
 )
+
+
+def _run_pipeline_analysis(
+    content: str, filename: str, deadline: float
+) -> AnalysisResponse:
+    remaining = max(0.0, deadline - time.monotonic())
+    if not analysis_slots.acquire(timeout=remaining):
+        raise AnalysisTimeoutError("Subtitle analysis timed out.")
+    try:
+        return pipeline.analyze(content, filename, deadline=deadline)
+    finally:
+        analysis_slots.release()
 
 
 @router.post("/analyze", response_model=AnalysisResponse)
@@ -33,12 +55,26 @@ async def analyze_subtitle(
             headers={"Retry-After": str(retry_after)},
         )
 
-    filename = file.filename or "subtitle.srt"
+    raw_filename = file.filename or "subtitle.srt"
+    filename = Path(raw_filename).name or "subtitle.srt"
     if not filename.lower().endswith(".srt"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Please upload a valid .srt file.",
         )
+
+    # Fast check on Content-Length header if provided
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > settings.max_upload_size_bytes:
+                max_mb = settings.max_upload_size_bytes // (1024 * 1024)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Subtitle file exceeds the {max_mb} MB limit.",
+                )
+        except ValueError:
+            pass
 
     content = await file.read(settings.max_upload_size_bytes + 1)
     if not content:
@@ -46,9 +82,10 @@ async def analyze_subtitle(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Subtitle file is empty."
         )
     if len(content) > settings.max_upload_size_bytes:
+        max_mb = settings.max_upload_size_bytes // (1024 * 1024)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Subtitle file exceeds the 10 MB limit.",
+            detail=f"Subtitle file exceeds the {max_mb} MB limit.",
         )
 
     try:
@@ -58,12 +95,13 @@ async def analyze_subtitle(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Subtitle text is too large to analyze.",
             )
-        async with analysis_slots:
-            return await asyncio.wait_for(
-                run_in_threadpool(pipeline.analyze, decoded_content, filename),
-                timeout=settings.analysis_timeout_seconds,
-            )
-    except asyncio.TimeoutError as error:
+
+        deadline = time.monotonic() + settings.analysis_timeout_seconds
+        return await asyncio.wait_for(
+            run_in_threadpool(_run_pipeline_analysis, decoded_content, filename, deadline),
+            timeout=settings.analysis_timeout_seconds + 0.5,
+        )
+    except (asyncio.TimeoutError, AnalysisTimeoutError) as error:
         raise HTTPException(
             status_code=status.HTTP_408_REQUEST_TIMEOUT,
             detail="Subtitle analysis timed out.",
@@ -75,6 +113,7 @@ async def analyze_subtitle(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
         ) from error
     except Exception as error:
+        logger.exception("NLP processing failed unexpectedly for %s", filename)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="NLP processing failed.",

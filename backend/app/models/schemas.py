@@ -20,6 +20,7 @@ class Token(BaseModel):
     reading: str | None = None
     pos: str
     jlpt: str | None = None
+    lookup_forms: list[str] = Field(default_factory=list, exclude=True)
 
 
 class AnalyzedSentence(SubtitleEntry):

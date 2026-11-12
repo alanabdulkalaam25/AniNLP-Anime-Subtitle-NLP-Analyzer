@@ -4,10 +4,18 @@ Base URL: `http://127.0.0.1:8000`
 
 ## `GET /api/health`
 
-Returns API availability.
+Returns API availability without initializing NLP dependencies.
 
 ```json
 {"status": "ok"}
+```
+
+## `GET /api/ready`
+
+Returns API readiness, verifying that the Japanese tokenizer and JLPT reference datasets are loaded.
+
+```json
+{"status": "ready"}
 ```
 
 ## `POST /api/analyze`
@@ -17,8 +25,8 @@ Uploads and analyzes a Japanese SubRip subtitle file.
 - Content type: `multipart/form-data`
 - Field: `file`
 - Accepted extension: `.srt`
-- Maximum size: 10 MB
-- Text encoding: UTF-8 (including BOM) or CP932
+- Maximum size: 10 MB (up to 500,000 characters of decoded text)
+- Text encoding: UTF-8 (including BOM), UTF-16 (with BOM), or CP932
 
 The response contains subtitle metadata, cleaned subtitle cues with normalized tokens, statistics, POS/JLPT distributions, and up to 25 frequent lexical words.
 
@@ -53,5 +61,7 @@ The response contains subtitle metadata, cleaned subtitle cues with normalized t
 Errors use JSON `{ "detail": "..." }`:
 
 - `400`: invalid extension, empty file, or size limit exceeded
+- `408`: analysis request timed out
 - `422`: invalid SRT or unsupported text encoding
+- `429`: rate limit exceeded
 - `500`: unexpected NLP-processing failure

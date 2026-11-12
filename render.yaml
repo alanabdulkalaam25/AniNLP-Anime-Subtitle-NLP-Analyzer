@@ -4,8 +4,14 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /api/health
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /api/ready
     envVars:
+      # Pin a Python version with prebuilt wheels for every pinned dependency
+      # instead of relying on Render's default, which may be newer.
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      # Set this in the Render dashboard to your exact Vercel origin(s),
+      # comma-separated, with no trailing slash.
       - key: CORS_ORIGINS
         sync: false

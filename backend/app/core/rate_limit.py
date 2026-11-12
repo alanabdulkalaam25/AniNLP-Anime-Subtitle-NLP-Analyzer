@@ -13,11 +13,22 @@ class RateLimiter:
         self.window_seconds = window_seconds
         self._requests: dict[str, deque[float]] = defaultdict(deque)
         self._lock = Lock()
+        self._last_cleanup: float = 0.0
 
     def allow(self, client_id: str) -> tuple[bool, int]:
         now = monotonic()
         cutoff = now - self.window_seconds
         with self._lock:
+            # Periodic cleanup of completely stale clients to prevent memory leaks
+            if now - self._last_cleanup >= self.window_seconds:
+                stale_clients = [
+                    cid for cid, timestamps in self._requests.items()
+                    if not timestamps or timestamps[-1] <= cutoff
+                ]
+                for cid in stale_clients:
+                    del self._requests[cid]
+                self._last_cleanup = now
+
             requests = self._requests[client_id]
             while requests and requests[0] <= cutoff:
                 requests.popleft()
@@ -30,3 +41,4 @@ class RateLimiter:
     def reset(self) -> None:
         with self._lock:
             self._requests.clear()
+            self._last_cleanup = 0.0
